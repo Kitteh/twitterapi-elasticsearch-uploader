@@ -1,0 +1,55 @@
+service: twitter-elasticsearch
+
+provider:
+  name: aws
+  runtime: java8
+  stage: dev
+  region: eu-west-1
+  timeout: 180
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+      Resource:
+        Fn::Join:
+          - ""
+          - - "arn:aws:s3:::"
+            - "ja-twitterapi-streambucket/*"
+    - Effect: Allow
+      Action:
+        - es:ESHttpPost
+        - es:ESHttpPut
+        - es:ESHttpDelete
+        - es:ESHttpGet
+      Resource:
+        - { "Fn::GetAtt": ["TwitterSearch", "DomainArn"] }
+        - { "Fn::Join": ["", ["Fn::GetAtt": ["TwitterSearch", "DomainArn"], "/*"]] }
+  environment:
+    ELASTICSEARCH_URL:
+      Fn::GetAtt: ["TwitterSearch", "DomainEndpoint"]
+
+package:
+  artifact: target/twitter-elasticsearch-dev.jar
+
+functions:
+  parsefile:
+    handler: digital.jameel.twitterelasticsearch.Handler
+
+resources:
+  Resources:
+    TwitterSearch:
+      Type: "AWS::Elasticsearch::Domain"
+      Properties:
+        ElasticsearchVersion: "6.3"
+        DomainName: "twitter-search"
+        ElasticsearchClusterConfig:
+          DedicatedMasterEnabled: false
+          InstanceCount: "1"
+          ZoneAwarenessEnabled: false
+          InstanceType: "t2.small.elasticsearch"
+        EBSOptions:
+          EBSEnabled: true
+          Iops: 0
+          VolumeSize: 10
+          VolumeType: "gp2"
